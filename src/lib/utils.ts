@@ -13,3 +13,9 @@ export const generateUsername = () => {
   const animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
   return `anonymous-${word}-${animal}-${nanoid(5)}`;
 };
+
+export const formatTimeRemaining = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
