@@ -1,32 +1,17 @@
 "use client";
 
+import { useUsername } from "@/hooks/use-username";
 import { client } from "@/lib/client";
-import { STORAGE_KEY } from "@/lib/constants";
-import { generateUsername } from "@/lib/utils";
 import { useMutation } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function Home() {
-  const [username, setUsername] = useState("");
   const router = useRouter();
+  const { username } = useUsername();
 
-  useEffect(() => {
-    const main = () => {
-      const stored = localStorage.getItem(STORAGE_KEY);
-
-      if (stored) {
-        setUsername(stored);
-        return;
-      }
-
-      const generated = generateUsername();
-      localStorage.setItem(STORAGE_KEY, generated);
-      setUsername(generated);
-    };
-
-    main();
-  }, []);
+  const searchParams = useSearchParams();
+  const wasDestroyed = searchParams.get("destroyed") === "true";
+  const error = searchParams.get("error");
 
   const { mutate: createRoom } = useMutation({
     mutationFn: async () => {
@@ -41,6 +26,42 @@ export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8">
+        {wasDestroyed && (
+          <div className="border border-red-900 bg-red-950/50 p-4 text-center">
+            <p className="text-sm font-bold text-red-500 uppercase">
+              ROOM DESTROYED
+            </p>
+
+            <p className="mt-1 text-xs text-zinc-500">
+              All messages were permanently deleted.
+            </p>
+          </div>
+        )}
+
+        {error === "room-not-found" && (
+          <div className="border border-red-900 bg-red-950/50 p-4 text-center">
+            <p className="text-sm font-bold text-red-500 uppercase">
+              ROOM NOT FOUND
+            </p>
+
+            <p className="mt-1 text-xs text-zinc-500">
+              This room may have expired or never existed.
+            </p>
+          </div>
+        )}
+
+        {error === "room-full" && (
+          <div className="border border-red-900 bg-red-950/50 p-4 text-center">
+            <p className="text-sm font-bold text-red-500 uppercase">
+              ROOM FULL
+            </p>
+
+            <p className="mt-1 text-xs text-zinc-500">
+              This room is at maximum capacity.
+            </p>
+          </div>
+        )}
+
         <div className="space-y-2 text-center">
           <h1 className="text-2xl font-bold tracking-tight text-green-500">
             {">"}private_chat
@@ -57,7 +78,7 @@ export default function Home() {
 
               <div className="flex items-center gap-3">
                 <div className="flex-1 border border-zinc-800 bg-zinc-950 p-3 font-mono text-sm text-zinc-400">
-                  {username}
+                  {username === null ? "Loading..." : username}
                 </div>
               </div>
             </div>

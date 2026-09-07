@@ -1,17 +1,59 @@
 "use client";
 
+import { useUsername } from "@/hooks/use-username";
+import { client } from "@/lib/client";
+import { useRealtime } from "@/lib/realtime-client";
 import { formatTimeRemaining } from "@/lib/utils";
-import { useParams } from "next/navigation";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { useParams, useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 
 const Page = () => {
   const params = useParams();
   const roomId = params.roomId as string;
+  const router = useRouter();
+  const { username } = useUsername();
 
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [copyStatus, setCopyStatus] = useState("COPY");
   const [timeRemaining, setTimeRemaining] = useState<number | null>(121);
+
+  const { data: messages, refetch } = useQuery({
+    queryKey: ["messages", roomId],
+    queryFn: async () => {
+      const res = await client.messages.get({ query: { roomId } });
+      return res.data;
+    },
+  });
+
+  useRealtime({
+    channels: [roomId],
+    events: ["chat.message", "chat.destroy"],
+    onData: ({ event }) => {
+      if (event === "chat.message") {
+        refetch();
+      }
+
+      if (event === "chat.destroy") {
+        router.push("/?destroyed=true");
+      }
+    },
+  });
+
+  const { mutate: sendMessage, isPending: isSending } = useMutation({
+    mutationFn: async ({ text }: { text: string }) => {
+      if (!username) {
+        throw new Error("Username is not loaded, try refreshing the page");
+      }
+
+      await client.messages.post(
+        { sender: username, text },
+        { query: { roomId } }
+      );
+    },
+  });
 
   const copyLink = () => {
     const url = window.location.href;
@@ -53,13 +95,49 @@ const Page = () => {
           </div>
         </div>
 
-        <button className="group flex cursor-pointer items-center gap-2 rounded bg-zinc-800 px-6 py-1.5 text-xs font-bold text-zinc-400 uppercase transition-all hover:bg-red-600 hover:text-white disabled:opacity-50">
+        <button
+          onClick={() => router.push("/")}
+          className="group flex cursor-pointer items-center gap-2 rounded bg-zinc-800 px-6 py-1.5 text-xs font-bold text-zinc-400 uppercase transition-all hover:bg-red-600 hover:text-white disabled:opacity-50"
+        >
           <span className="group-hover:animate-pulse">💣</span>
           Destroy Now
         </button>
       </header>
 
-      <div className="flex-1 scrollbar-thin space-y-4 overflow-y-auto p-4"></div>
+      {/* MESSAGES */}
+      <div className="flex-1 scrollbar-thin space-y-4 overflow-y-auto p-4">
+        {messages?.messages.length === 0 && (
+          <div className="flex h-full items-center justify-center">
+            <p className="font-mono text-sm text-zinc-600">
+              No messages yet, start the conversation.
+            </p>
+          </div>
+        )}
+
+        {messages?.messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`flex flex-col ${msg.sender === username ? "items-end" : "items-start"} px-2`}
+          >
+            <div className="group max-w-[80%]">
+              <div className="mb-1 flex items-baseline gap-3">
+                <span
+                  className={`text-xs font-bold ${msg.sender === username ? "text-green-500" : "text-blue-500"}`}
+                >
+                  {msg.sender === username ? "YOU" : msg.sender}
+                </span>
+                <span className="text-[10px] text-zinc-600">
+                  {format(msg.timeStamp, "HH:mm")}
+                </span>
+              </div>
+
+              <p className="text-sm leading-relaxed break-all text-zinc-300">
+                {msg.text}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
 
       <div className="border-t border-zinc-800 bg-zinc-900/30 p-4">
         <div className="flex gap-4">
@@ -74,6 +152,7 @@ const Page = () => {
               onKeyDown={(e) => {
                 if (e.key === "Enter" && input.trim()) {
                   // TODO: send message
+                  sendMessage({ text: input });
                   inputRef.current?.focus();
                   setInput("");
                 }
@@ -84,7 +163,15 @@ const Page = () => {
             />
           </div>
 
-          <button className="cursor-pointer bg-zinc-800 px-6 text-sm font-bold text-zinc-400 uppercase transition-all hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50">
+          <button
+            onClick={() => {
+              sendMessage({ text: input });
+              inputRef.current?.focus();
+              setInput("");
+            }}
+            disabled={!input.trim() || isSending}
+            className="cursor-pointer bg-zinc-800 px-6 text-sm font-bold text-zinc-400 uppercase transition-all hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
             Send
           </button>
         </div>
