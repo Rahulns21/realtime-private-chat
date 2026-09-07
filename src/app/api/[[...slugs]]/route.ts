@@ -1,11 +1,11 @@
 import { Message, realtime } from "@/lib/realtime";
-import { redis } from "@/lib/redis";
+import { redis, setRoomTTL } from "@/lib/redis";
 import { Elysia } from "elysia";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { authMiddleware } from "./auth";
 
-const MINUTES: number = 10;
+const MINUTES: number = 1;
 const ROOM_TTL_SECONDS: number = 60 * MINUTES;
 
 export const rooms = new Elysia({ prefix: "/room" }).post(
@@ -56,9 +56,7 @@ export const messages = new Elysia({ prefix: "/messages" })
 
       // housekeeping
       const remaining = await redis.ttl(`meta:${roomId}`);
-      await redis.expire(`message:${roomId}`, remaining);
-      await redis.expire(`history:${roomId}`, remaining);
-      await redis.expire(roomId, remaining);
+      await setRoomTTL(roomId, remaining);
     },
     {
       query: z.object({ roomId: z.string() }),
