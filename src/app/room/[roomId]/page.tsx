@@ -139,7 +139,7 @@ const Page = () => {
         {/* Destroy button */}
         <button
           onClick={() => destroyRoom()}
-          className="group flex w-full cursor-pointer items-center justify-center gap-2 rounded bg-zinc-800 px-4 py-2 text-xs font-bold text-zinc-400 uppercase transition-all hover:bg-red-600 hover:text-white disabled:opacity-50 sm:w-auto sm:px-6 sm:py-1.5 max-sm:bg-red-600 max-sm:text-white"
+          className="group flex w-full cursor-pointer items-center justify-center gap-2 rounded bg-zinc-800 px-4 py-2 text-xs font-bold text-zinc-400 uppercase transition-all hover:bg-red-600 hover:text-white disabled:opacity-50 max-sm:bg-red-600 max-sm:text-white sm:w-auto sm:px-6 sm:py-1.5"
         >
           <span className="group-hover:animate-pulse">💣</span>
           <span className="sm:inline">Destroy Now</span>
@@ -147,7 +147,7 @@ const Page = () => {
       </header>
 
       {/* MESSAGES */}
-      <div className="flex-1 min-h-0 scrollbar-thin overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto p-4">
         {messages?.messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="font-mono text-sm text-zinc-600">
@@ -159,7 +159,7 @@ const Page = () => {
         {messages?.messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex flex-col ${msg.sender === username ? "items-end" : "items-start"} px-2 mb-3`}
+            className={`flex flex-col ${msg.sender === username ? "items-end" : "items-start"} mb-3 px-2`}
           >
             <div className="group max-w-[80%]">
               <div
@@ -185,7 +185,7 @@ const Page = () => {
         ))}
       </div>
 
-      <div className="border-t border-zinc-800 bg-zinc-900/30 p-4 pb-safe">
+      <div className="pb-safe border-t border-zinc-800 bg-zinc-900/30 p-4">
         <div className="flex gap-4">
           <div className="group relative flex-1">
             <span className="absolute top-1/2 left-4 -translate-y-1/2 animate-pulse text-green-500">
@@ -216,10 +216,10 @@ const Page = () => {
               setInput("");
             }}
             disabled={!input.trim() || isSending}
-            className="cursor-pointer bg-zinc-800 px-6 text-sm font-bold text-zinc-400 uppercase transition-all hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+            className="cursor-pointer bg-zinc-800 px-6 text-sm font-bold text-zinc-400 uppercase transition-all hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50 max-sm:bg-green-500 max-sm:text-white"
           >
             Send
-          </button>
+          </button> 
         </div>
       </div>
     </main>
