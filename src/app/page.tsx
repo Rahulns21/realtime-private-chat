@@ -4,7 +4,7 @@ import { useUsername } from "@/hooks/use-username";
 import { client } from "@/lib/client";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 
 const Page = () => {
   return (
@@ -17,6 +17,10 @@ const Page = () => {
 function Lobby() {
   const router = useRouter();
   const { username } = useUsername();
+  const [roomInput, setRoomInput] = useState("");
+  const [showJoinInput, setShowJoinInput] = useState(false);
+  const [showJoinInputError, setShowJoinInputError] = useState(false);
+  const [joinInputError, setJoinInputError] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
   const wasDestroyed = searchParams.get("destroyed") === "true";
@@ -31,6 +35,46 @@ function Lobby() {
       }
     },
   });
+
+  const handleJoin = () => {
+    const trimmed = roomInput.trim();
+    if (!trimmed) return;
+
+    let roomId = trimmed;
+
+    if (trimmed.includes("/room/")) {
+      const match = trimmed.match(/\/room\/([a-zA-Z0-9_-]+)/);
+      if (match) {
+        roomId = match[1];
+      } else {
+        alert("Invalid room link format");
+        return;
+      }
+    }
+
+    if (trimmed.startsWith("room/")) {
+      roomId = trimmed.replace("room/", "");
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(roomId)) {
+      setShowJoinInputError(true);
+      setJoinInputError("Invalid room ID or link");
+      return;
+    }
+
+    // clear error and navigate
+    setShowJoinInputError(false);
+    setJoinInputError(null);
+    router.push(`/room/${roomId}`);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRoomInput(e.target.value);
+    if (showJoinInputError) {
+      setShowJoinInputError(false);
+      setJoinInputError(null);
+    }
+  };
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -99,6 +143,48 @@ function Lobby() {
               CREATE SECURE ROOM
             </button>
           </div>
+
+          <div className="mt-5 flex items-center gap-2 text-xs">
+            <div className="h-px flex-1 bg-zinc-800" />
+            <button
+              onClick={() => setShowJoinInput(!showJoinInput)}
+              className="cursor-pointer px-2 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
+            >
+              {showJoinInput ? "✕ CLOSE" : "JOIN EXISTING ROOM"}
+            </button>
+            <div className="h-px flex-1 bg-zinc-800" />
+          </div>
+
+          {/* Join Room Input */}
+          {showJoinInput && (
+            <div className="mt-2">
+              <div className="mt-5 flex gap-2 border border-zinc-800 bg-zinc-950/50">
+                <input
+                  type="text"
+                  value={roomInput}
+                  onChange={handleInputChange}
+                  onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+                  placeholder="Paste room join link..."
+                  className="flex-1 bg-transparent p-2 text-sm text-zinc-400 outline-none placeholder:text-zinc-600"
+                  autoFocus
+                />
+                <button
+                  onClick={handleJoin}
+                  disabled={!roomInput.trim()}
+                  className="transition-color cursor-pointer bg-white px-5 py-3 text-sm font-bold text-black uppercase disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  JOIN
+                </button>
+              </div>
+
+              {/* Error message */}
+              {showJoinInputError && joinInputError && (
+                <div className="flex w-full justify-center">
+                  <p className="mt-3 text-xs text-red-500">{joinInputError}</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </main>
