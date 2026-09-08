@@ -20,31 +20,9 @@ const Page = () => {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [copyStatus, setCopyStatus] = useState("COPY");
-  const [hasJoined, setHasJoined] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
 
-  // 1. Check if user already has a valid token
-  useEffect(() => {
-    const checkAuth = async () => {
-      const hasToken = document.cookie.includes("x-auth-token");
-      
-      if (hasToken) {
-        try {
-          // Verify token is valid by pinging TTL endpoint
-          await client.room.ttl.get({ query: { roomId } });
-          setHasJoined(true);
-        } catch {
-          setHasJoined(false);
-        }
-      }
-      setIsChecking(false);
-    };
-
-    checkAuth();
-  }, [roomId]);
-
-  // 2. TTL Query
-  const { data: ttlData } = useQuery({
+  // 1. TTL Query - this will succeed if user has a token, fail if not
+  const { data: ttlData, isLoading: isTtlLoading, error: ttlError } = useQuery({
     queryKey: ["ttl", roomId],
     queryFn: async () => {
       const res = await client.room.ttl.get({
@@ -54,17 +32,20 @@ const Page = () => {
     },
     initialData: { ttl: ROOM_TTL_SECONDS },
     refetchInterval: 1000,
-    enabled: hasJoined, // Only fetch TTL after joining
+    retry: false,
   });
 
   const timeRemaining = ttlData?.ttl ?? 0;
 
+  // 2. Check if user is authenticated (TTL query succeeded)
+  const isAuthenticated = !ttlError && !isTtlLoading;
+
   // 3. Redirect on expiry
   useEffect(() => {
-    if (hasJoined && timeRemaining === 0) {
+    if (isAuthenticated && timeRemaining === 0) {
       router.push("/?destroyed=true");
     }
-  }, [timeRemaining, router, hasJoined]);
+  }, [timeRemaining, router, isAuthenticated]);
 
   // 4. Join mutation
   const { mutate: joinRoom, isPending: isJoining } = useMutation({
@@ -75,7 +56,8 @@ const Page = () => {
       return res.data;
     },
     onSuccess: () => {
-      setHasJoined(true);
+      // Reload to refresh auth state
+      window.location.reload();
     },
     onError: (error: Error & { status?: number }) => {
       if (error.message?.includes("full") || error.status === 409) {
@@ -93,7 +75,7 @@ const Page = () => {
       const res = await client.messages.get({ query: { roomId } });
       return res.data;
     },
-    enabled: hasJoined,
+    enabled: isAuthenticated,
   });
 
   // 6. Realtime (only after joining)
@@ -108,7 +90,7 @@ const Page = () => {
         router.push(ROUTES.ROOM_DESTROYED);
       }
     },
-    enabled: hasJoined,
+    enabled: isAuthenticated,
   });
 
   // 7. Destroy mutation
@@ -142,7 +124,7 @@ const Page = () => {
   };
 
   // 10. Loading state
-  if (isChecking) {
+  if (isTtlLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-black">
         <p className="text-zinc-500">Loading...</p>
@@ -150,8 +132,8 @@ const Page = () => {
     );
   }
 
-  // 11. JOIN SCREEN — Show if not joined
-  if (!hasJoined) {
+  // 11. JOIN SCREEN — Show if not authenticated
+  if (!isAuthenticated) {
     return (
       <main className="flex h-dvh max-h-dvh flex-col items-center justify-center bg-black p-4">
         <div className="w-full max-w-md space-y-8">

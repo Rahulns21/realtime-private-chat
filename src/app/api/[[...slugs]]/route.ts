@@ -26,6 +26,7 @@ export const rooms = new Elysia({ prefix: "/room" })
       value: creatorToken,
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
+      sameSite: "lax", 
       maxAge: ROOM_TTL_SECONDS,
       path: "/",
     });
@@ -65,6 +66,7 @@ export const rooms = new Elysia({ prefix: "/room" })
         value: token,
         httpOnly: false,
         secure: process.env.NODE_ENV === "production",
+        sameSite: "lax", 
         maxAge: ROOM_TTL_SECONDS,
         path: "/",
       });
