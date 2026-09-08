@@ -102,7 +102,7 @@ const Page = () => {
     <div className="flex flex-col">
       <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">Room ID</span>
       <div className="flex items-center gap-2">
-        <span className="truncate text-sm font-bold text-green-500 max-w-[120px] sm:max-w-[200px]">
+        <span className="truncate text-sm font-bold text-green-500 max-w-30 sm:max-w-50">
           {roomId}
         </span>
         <button
