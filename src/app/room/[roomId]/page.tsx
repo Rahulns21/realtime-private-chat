@@ -95,7 +95,7 @@ const Page = () => {
   };
 
   return (
-    <main className="flex h-screen max-h-screen flex-col overflow-hidden bg-black">
+    <main className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-black">
       <header className="flex flex-col gap-3 border-b border-zinc-800 bg-zinc-900/30 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
         {/* Left section */}
         <div className="flex items-center justify-between gap-4">
@@ -147,7 +147,7 @@ const Page = () => {
       </header>
 
       {/* MESSAGES */}
-      <div className="flex-1 scrollbar-thin overflow-y-auto p-4">
+      <div className="flex-1 min-h-0 scrollbar-thin overflow-y-auto p-4">
         {messages?.messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="font-mono text-sm text-zinc-600">
@@ -185,7 +185,7 @@ const Page = () => {
         ))}
       </div>
 
-      <div className="border-t border-zinc-800 bg-zinc-900/30 p-4">
+      <div className="border-t border-zinc-800 bg-zinc-900/30 p-4 pb-safe">
         <div className="flex gap-4">
           <div className="group relative flex-1">
             <span className="absolute top-1/2 left-4 -translate-y-1/2 animate-pulse text-green-500">
