@@ -159,7 +159,7 @@ const Page = () => {
         {messages?.messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex flex-col ${msg.sender === username ? "items-end" : "items-start"} px-2`}
+            className={`flex flex-col ${msg.sender === username ? "items-end" : "items-start"} px-2 mb-3`}
           >
             <div className="group max-w-[80%]">
               <div
