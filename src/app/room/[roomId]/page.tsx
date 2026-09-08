@@ -95,7 +95,7 @@ const Page = () => {
   };
 
   return (
-    <main className="flex h-screen max-h-screen flex-col overflow-hidden">
+    <main className="flex h-screen max-h-screen flex-col overflow-hidden bg-black">
       <header className="flex flex-col gap-3 border-b border-zinc-800 bg-zinc-900/30 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
   {/* Left section */}
   <div className="flex items-center justify-between gap-4">

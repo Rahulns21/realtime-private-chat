@@ -77,7 +77,7 @@ function Lobby() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4">
+    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-black">
       <div className="w-full max-w-md space-y-8">
         {wasDestroyed && (
           <div className="border border-red-900 bg-red-950/50 p-4 text-center">
@@ -119,7 +119,7 @@ function Lobby() {
           <h1 className="text-2xl font-bold tracking-tight text-green-500">
             {">"}private_chat
           </h1>
-          <p className="text-sm">A private, self-destrcuting chat room.</p>
+          <p className="text-sm text-white">A private, self-destrcuting chat room.</p>
         </div>
 
         <div className="border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-md">
