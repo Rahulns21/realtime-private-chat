@@ -1,13 +1,15 @@
 "use client";
 
+import { ROOM_TTL_SECONDS } from "@/app/api/[[...slugs]]/route";
 import { useUsername } from "@/hooks/use-username";
 import { client } from "@/lib/client";
+import { ROUTES } from "@/lib/constants";
 import { useRealtime } from "@/lib/realtime-client";
 import { formatTimeRemaining } from "@/lib/utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useParams, useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const Page = () => {
   const params = useParams();
@@ -18,7 +20,29 @@ const Page = () => {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [copyStatus, setCopyStatus] = useState("COPY");
-  const [timeRemaining, setTimeRemaining] = useState<number | null>(121);
+
+  const { data: ttlData } = useQuery({
+    queryKey: ["ttl", roomId],
+    queryFn: async () => {
+      const res = await client.room.ttl.get({
+        query: { roomId },
+      });
+      return res.data;
+    },
+    initialData: { ttl: ROOM_TTL_SECONDS },
+    refetchInterval: 1000,
+  });
+
+  const timeRemaining = ttlData?.ttl ?? 0;
+
+  useEffect(() => {
+    if (timeRemaining === null || timeRemaining < 0) return;
+
+    if (timeRemaining === 0) {
+      router.push("/?destroyed=true");
+      return;
+    }
+  }, [timeRemaining, router]);
 
   const { data: messages, refetch } = useQuery({
     queryKey: ["messages", roomId],
@@ -37,7 +61,7 @@ const Page = () => {
       }
 
       if (event === "chat.destroy") {
-        router.push("/?destroyed=true");
+        router.push(ROUTES.ROOM_DESTROYED);
       }
     },
   });
@@ -120,7 +144,9 @@ const Page = () => {
             className={`flex flex-col ${msg.sender === username ? "items-end" : "items-start"} px-2`}
           >
             <div className="group max-w-[80%]">
-              <div className="mb-1 flex items-baseline gap-3">
+              <div className={`mb-1 flex items-baseline gap-3 ${
+                msg.sender === username ? "justify-end" : "justify-start"
+              }`}>
                 <span
                   className={`text-xs font-bold ${msg.sender === username ? "text-green-500" : "text-blue-500"}`}
                 >

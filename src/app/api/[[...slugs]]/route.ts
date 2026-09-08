@@ -6,11 +6,10 @@ import { z } from "zod";
 import { authMiddleware } from "./auth";
 
 const MINUTES: number = 1;
-const ROOM_TTL_SECONDS: number = 60 * MINUTES;
+export const ROOM_TTL_SECONDS: number = 60 * MINUTES;
 
-export const rooms = new Elysia({ prefix: "/room" }).post(
-  "/create",
-  async () => {
+export const rooms = new Elysia({ prefix: "/room" })
+  .post("/create", async () => {
     const roomId = nanoid();
     const metaKey = `meta:${roomId}`;
 
@@ -22,8 +21,16 @@ export const rooms = new Elysia({ prefix: "/room" }).post(
     await redis.expire(metaKey, ROOM_TTL_SECONDS);
 
     return { roomId };
-  }
-);
+  })
+  .use(authMiddleware)
+  .get(
+    "/ttl",
+    async ({ auth }) => {
+      const ttl = await redis.ttl(`meta:${auth.roomId}`);
+      return { ttl: ttl > 0 ? ttl : 0 }
+    },
+    { query: z.object({ roomId: z.string() }) }
+  );
 
 export const messages = new Elysia({ prefix: "/messages" })
   .use(authMiddleware)

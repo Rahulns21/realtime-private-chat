@@ -107,3 +107,8 @@ export const ANIMALS = [
 ];
 
 export const STORAGE_KEY = "chat_username";
+
+export const ROUTES = {
+  HOME: "/",
+  ROOM_DESTROYED: "/?destroyed=true",
+} as const;
