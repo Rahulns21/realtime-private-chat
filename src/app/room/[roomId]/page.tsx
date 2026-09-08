@@ -97,49 +97,57 @@ const Page = () => {
   return (
     <main className="flex h-screen max-h-screen flex-col overflow-hidden bg-black">
       <header className="flex flex-col gap-3 border-b border-zinc-800 bg-zinc-900/30 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
-  {/* Left section */}
-  <div className="flex items-center justify-between gap-4">
-    <div className="flex flex-col">
-      <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">Room ID</span>
-      <div className="flex items-center gap-2">
-        <span className="truncate text-sm font-bold text-green-500 max-w-30 sm:max-w-50">
-          {roomId}
-        </span>
+        {/* Left section */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">
+              Room ID
+            </span>
+            <div className="flex items-center gap-2">
+              <span className="max-w-30 truncate text-sm font-bold text-green-500 sm:max-w-50">
+                {roomId}
+              </span>
+              <button
+                onClick={copyLink}
+                className="cursor-pointer rounded bg-zinc-800 px-2 py-0.5 text-[10px] whitespace-nowrap text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
+              >
+                {copyStatus}
+              </button>
+            </div>
+          </div>
+
+          <div className="hidden h-8 w-px bg-zinc-800 sm:block" />
+
+          <div className="flex flex-col">
+            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">
+              Self-Destruct
+            </span>
+            <span
+              className={`flex items-center gap-2 text-sm font-bold ${
+                timeRemaining !== null && timeRemaining < 60
+                  ? "text-red-500"
+                  : "text-amber-500"
+              }`}
+            >
+              {timeRemaining !== null
+                ? formatTimeRemaining(timeRemaining)
+                : "--:--"}
+            </span>
+          </div>
+        </div>
+
+        {/* Destroy button */}
         <button
-          onClick={copyLink}
-          className="cursor-pointer rounded bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200 whitespace-nowrap"
+          onClick={() => destroyRoom()}
+          className="group flex w-full cursor-pointer items-center justify-center gap-2 rounded bg-zinc-800 px-4 py-2 text-xs font-bold text-zinc-400 uppercase transition-all hover:bg-red-600 hover:text-white disabled:opacity-50 sm:w-auto sm:px-6 sm:py-1.5 max-sm:bg-red-600 max-sm:text-white"
         >
-          {copyStatus}
+          <span className="group-hover:animate-pulse">💣</span>
+          <span className="sm:inline">Destroy Now</span>
         </button>
-      </div>
-    </div>
-
-    <div className="hidden h-8 w-px bg-zinc-800 sm:block" />
-
-    <div className="flex flex-col">
-      <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">Self-Destruct</span>
-      <span
-        className={`flex items-center gap-2 text-sm font-bold ${
-          timeRemaining !== null && timeRemaining < 60 ? "text-red-500" : "text-amber-500"
-        }`}
-      >
-        {timeRemaining !== null ? formatTimeRemaining(timeRemaining) : "--:--"}
-      </span>
-    </div>
-  </div>
-
-  {/* Destroy button */}
-  <button
-    onClick={() => destroyRoom()}
-    className="group flex w-full cursor-pointer items-center justify-center gap-2 rounded bg-zinc-800 px-4 py-2 text-xs font-bold text-zinc-400 uppercase transition-all hover:bg-red-600 hover:text-white disabled:opacity-50 sm:w-auto sm:px-6 sm:py-1.5"
-  >
-    <span className="group-hover:animate-pulse">💣</span>
-    <span className="sm:inline">Destroy Now</span>
-  </button>
-</header>
+      </header>
 
       {/* MESSAGES */}
-      <div className="flex-1 scrollbar-thin space-y-4 overflow-y-auto p-4">
+      <div className="flex-1 scrollbar-thin overflow-y-auto p-4">
         {messages?.messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
             <p className="font-mono text-sm text-zinc-600">

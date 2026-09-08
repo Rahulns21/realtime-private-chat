@@ -77,7 +77,7 @@ function Lobby() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 bg-black">
+    <main className="flex h-screen flex-col items-center justify-center p-4 bg-black overflow-hidden">
       <div className="w-full max-w-md space-y-8">
         {wasDestroyed && (
           <div className="border border-red-900 bg-red-950/50 p-4 text-center">
