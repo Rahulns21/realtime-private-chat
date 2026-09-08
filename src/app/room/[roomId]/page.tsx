@@ -20,7 +20,30 @@ const Page = () => {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [copyStatus, setCopyStatus] = useState("COPY");
+  const [hasJoined, setHasJoined] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
+  // 1. Check if user already has a valid token
+  useEffect(() => {
+    const checkAuth = async () => {
+      const hasToken = document.cookie.includes("x-auth-token");
+      
+      if (hasToken) {
+        try {
+          // Verify token is valid by pinging TTL endpoint
+          await client.room.ttl.get({ query: { roomId } });
+          setHasJoined(true);
+        } catch {
+          setHasJoined(false);
+        }
+      }
+      setIsChecking(false);
+    };
+
+    checkAuth();
+  }, [roomId]);
+
+  // 2. TTL Query
   const { data: ttlData } = useQuery({
     queryKey: ["ttl", roomId],
     queryFn: async () => {
@@ -31,27 +54,49 @@ const Page = () => {
     },
     initialData: { ttl: ROOM_TTL_SECONDS },
     refetchInterval: 1000,
+    enabled: hasJoined, // Only fetch TTL after joining
   });
 
   const timeRemaining = ttlData?.ttl ?? 0;
 
+  // 3. Redirect on expiry
   useEffect(() => {
-    if (timeRemaining === null || timeRemaining < 0) return;
-
-    if (timeRemaining === 0) {
+    if (hasJoined && timeRemaining === 0) {
       router.push("/?destroyed=true");
-      return;
     }
-  }, [timeRemaining, router]);
+  }, [timeRemaining, router, hasJoined]);
 
+  // 4. Join mutation
+  const { mutate: joinRoom, isPending: isJoining } = useMutation({
+    mutationFn: async () => {
+      const res = await client.room.join.post(null, {
+        query: { roomId },
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      setHasJoined(true);
+    },
+    onError: (error: Error & { status?: number }) => {
+      if (error.message?.includes("full") || error.status === 409) {
+        router.push("/?error=room-full");
+      } else {
+        router.push("/?error=room-not-found");
+      }
+    },
+  });
+
+  // 5. Messages query (only after joining)
   const { data: messages, refetch } = useQuery({
     queryKey: ["messages", roomId],
     queryFn: async () => {
       const res = await client.messages.get({ query: { roomId } });
       return res.data;
     },
+    enabled: hasJoined,
   });
 
+  // 6. Realtime (only after joining)
   useRealtime({
     channels: [roomId],
     events: ["chat.message", "chat.destroy"],
@@ -59,13 +104,14 @@ const Page = () => {
       if (event === "chat.message") {
         refetch();
       }
-
       if (event === "chat.destroy") {
         router.push(ROUTES.ROOM_DESTROYED);
       }
     },
+    enabled: hasJoined,
   });
 
+  // 7. Destroy mutation
   const { mutate: destroyRoom } = useMutation({
     mutationFn: async () => {
       await client.room.delete(null, {
@@ -74,12 +120,12 @@ const Page = () => {
     },
   });
 
+  // 8. Send message mutation
   const { mutate: sendMessage, isPending: isSending } = useMutation({
     mutationFn: async ({ text }: { text: string }) => {
       if (!username) {
         throw new Error("Username is not loaded, try refreshing the page");
       }
-
       await client.messages.post(
         { sender: username, text },
         { query: { roomId } }
@@ -87,6 +133,7 @@ const Page = () => {
     },
   });
 
+  // 9. Copy link
   const copyLink = () => {
     const url = window.location.href;
     navigator.clipboard.writeText(url);
@@ -94,15 +141,66 @@ const Page = () => {
     setTimeout(() => setCopyStatus("COPY"), 500);
   };
 
+  // 10. Loading state
+  if (isChecking) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-black">
+        <p className="text-zinc-500">Loading...</p>
+      </div>
+    );
+  }
+
+  // 11. JOIN SCREEN — Show if not joined
+  if (!hasJoined) {
+    return (
+      <main className="flex h-dvh max-h-dvh flex-col items-center justify-center bg-black p-4">
+        <div className="w-full max-w-md space-y-8">
+          <div className="space-y-2 text-center">
+            <h1 className="text-2xl font-bold tracking-tight text-green-500">
+              {">"}private_chat
+            </h1>
+            <p className="text-sm text-zinc-400">
+              You&apos;ve been invited to a private room
+            </p>
+          </div>
+
+          <div className="border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-md">
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <label className="flex items-center text-zinc-500">Room ID</label>
+                <div className="border border-zinc-800 bg-zinc-950 p-3 font-mono text-sm text-zinc-400">
+                  {roomId}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center text-zinc-500">Your Identity</label>
+                <div className="border border-zinc-800 bg-zinc-950 p-3 font-mono text-sm text-zinc-400">
+                  {username || "Loading..."}
+                </div>
+              </div>
+
+              <button
+                onClick={() => joinRoom()}
+                disabled={isJoining || !username}
+                className="mt-2 w-full cursor-pointer bg-green-500 p-3 text-sm font-bold text-black transition-colors hover:bg-green-400 disabled:opacity-50"
+              >
+                {isJoining ? "Joining..." : "JOIN ROOM"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // 12. CHAT UI — Show after joining
   return (
     <main className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-black">
       <header className="flex flex-col gap-3 border-b border-zinc-800 bg-zinc-900/30 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
-        {/* Left section */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col">
-            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">
-              Room ID
-            </span>
+            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">Room ID</span>
             <div className="flex items-center gap-2">
               <span className="max-w-30 truncate text-sm font-bold text-green-500 sm:max-w-50">
                 {roomId}
@@ -119,24 +217,17 @@ const Page = () => {
           <div className="hidden h-8 w-px bg-zinc-800 sm:block" />
 
           <div className="flex flex-col">
-            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">
-              Self-Destruct
-            </span>
+            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">Self-Destruct</span>
             <span
               className={`flex items-center gap-2 text-sm font-bold ${
-                timeRemaining !== null && timeRemaining < 60
-                  ? "text-red-500"
-                  : "text-amber-500"
+                timeRemaining < 60 ? "text-red-500" : "text-amber-500"
               }`}
             >
-              {timeRemaining !== null
-                ? formatTimeRemaining(timeRemaining)
-                : "--:--"}
+              {formatTimeRemaining(timeRemaining)}
             </span>
           </div>
         </div>
 
-        {/* Destroy button */}
         <button
           onClick={() => destroyRoom()}
           className="group flex w-full cursor-pointer items-center justify-center gap-2 rounded bg-zinc-800 px-4 py-2 text-xs font-bold text-zinc-400 uppercase transition-all hover:bg-red-600 hover:text-white disabled:opacity-50 max-sm:bg-red-600 max-sm:text-white sm:w-auto sm:px-6 sm:py-1.5"
@@ -146,7 +237,6 @@ const Page = () => {
         </button>
       </header>
 
-      {/* MESSAGES */}
       <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto p-4">
         {messages?.messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
@@ -176,7 +266,6 @@ const Page = () => {
                   {format(msg.timeStamp, "HH:mm")}
                 </span>
               </div>
-
               <p className="text-sm leading-relaxed break-all text-zinc-300">
                 {msg.text}
               </p>
@@ -197,7 +286,6 @@ const Page = () => {
               value={input}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && input.trim()) {
-                  // TODO: send message
                   sendMessage({ text: input });
                   inputRef.current?.focus();
                   setInput("");
@@ -219,7 +307,7 @@ const Page = () => {
             className="cursor-pointer bg-zinc-800 px-6 text-sm font-bold text-zinc-400 uppercase transition-all hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50 max-sm:bg-green-500 max-sm:text-white"
           >
             Send
-          </button> 
+          </button>
         </div>
       </div>
     </main>

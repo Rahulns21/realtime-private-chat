@@ -9,19 +9,75 @@ const MINUTES: number = 10;
 export const ROOM_TTL_SECONDS: number = 60 * MINUTES;
 
 export const rooms = new Elysia({ prefix: "/room" })
-  .post("/create", async () => {
+  .post("/create", async ({ cookie }) => {
     const roomId = nanoid();
     const metaKey = `meta:${roomId}`;
 
+    const creatorToken = nanoid();
+
     await redis.hset(metaKey, {
-      connected: [],
+      connected: [creatorToken],
       createdAt: Date.now(),
     });
 
     await redis.expire(metaKey, ROOM_TTL_SECONDS);
 
+    cookie["x-auth-token"]?.set({
+      value: creatorToken,
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: ROOM_TTL_SECONDS,
+      path: "/",
+    });
+
     return { roomId };
   })
+  .post(
+    "/join",
+    async ({ query, cookie, set }) => {
+      const { roomId } = query;
+
+      // check if room exists
+      const exists = await redis.exists(`meta:${roomId}`);
+      if (!exists) {
+        set.status = 404;
+        return { error: "Room not found" };
+      }
+
+      // check room capacity
+      const connected = await redis.hget<string[]>(
+        `meta:${roomId}`,
+        "connected"
+      );
+
+      if (connected && connected.length >= 2) {
+        set.status = 409;
+        return { error: "Room is full" };
+      }
+
+      const token = nanoid();
+
+      await redis.hset(`meta:${roomId}`, {
+        connected: [...(connected || []), token],
+      });
+
+      cookie["x-auth-token"]?.set({
+        value: token,
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: ROOM_TTL_SECONDS,
+        path: "/",
+      });
+
+      const remaining = await redis.ttl(`meta:${roomId}`);
+      await setRoomTTL(roomId, remaining > 0 ? remaining : ROOM_TTL_SECONDS);
+
+      return { success: true, token };
+    },
+    {
+      query: z.object({ roomId: z.string() }),
+    }
+  )
   .use(authMiddleware)
   .get(
     "/ttl",
