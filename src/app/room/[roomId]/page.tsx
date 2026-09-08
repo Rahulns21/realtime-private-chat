@@ -66,6 +66,14 @@ const Page = () => {
     },
   });
 
+  const { mutate: destroyRoom } = useMutation({
+    mutationFn: async () => {
+      await client.room.delete(null, {
+        query: { roomId },
+      });
+    },
+  });
+
   const { mutate: sendMessage, isPending: isSending } = useMutation({
     mutationFn: async ({ text }: { text: string }) => {
       if (!username) {
@@ -120,7 +128,7 @@ const Page = () => {
         </div>
 
         <button
-          onClick={() => router.push("/")}
+          onClick={() => destroyRoom()}
           className="group flex cursor-pointer items-center gap-2 rounded bg-zinc-800 px-6 py-1.5 text-xs font-bold text-zinc-400 uppercase transition-all hover:bg-red-600 hover:text-white disabled:opacity-50"
         >
           <span className="group-hover:animate-pulse">💣</span>
@@ -144,9 +152,11 @@ const Page = () => {
             className={`flex flex-col ${msg.sender === username ? "items-end" : "items-start"} px-2`}
           >
             <div className="group max-w-[80%]">
-              <div className={`mb-1 flex items-baseline gap-3 ${
-                msg.sender === username ? "justify-end" : "justify-start"
-              }`}>
+              <div
+                className={`mb-1 flex items-baseline gap-3 ${
+                  msg.sender === username ? "justify-end" : "justify-start"
+                }`}
+              >
                 <span
                   className={`text-xs font-bold ${msg.sender === username ? "text-green-500" : "text-blue-500"}`}
                 >

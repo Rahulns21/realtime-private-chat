@@ -1,11 +1,11 @@
 import { Message, realtime } from "@/lib/realtime";
-import { redis, setRoomTTL } from "@/lib/redis";
+import { delRoom, redis, setRoomTTL } from "@/lib/redis";
 import { Elysia } from "elysia";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { authMiddleware } from "./auth";
 
-const MINUTES: number = 1;
+const MINUTES: number = 10;
 export const ROOM_TTL_SECONDS: number = 60 * MINUTES;
 
 export const rooms = new Elysia({ prefix: "/room" })
@@ -27,9 +27,21 @@ export const rooms = new Elysia({ prefix: "/room" })
     "/ttl",
     async ({ auth }) => {
       const ttl = await redis.ttl(`meta:${auth.roomId}`);
-      return { ttl: ttl > 0 ? ttl : 0 }
+      return { ttl: ttl > 0 ? ttl : 0 };
     },
     { query: z.object({ roomId: z.string() }) }
+  )
+  .delete(
+    "/",
+    async ({ auth }) => {
+      await realtime
+        .channel(auth.roomId)
+        .emit("chat.destroy", { isDestroyed: true });
+      await delRoom(auth.roomId);
+    },
+    {
+      query: z.object({ roomId: z.string() }),
+    }
   );
 
 export const messages = new Elysia({ prefix: "/messages" })
@@ -96,3 +108,4 @@ export const app = new Elysia({ prefix: "/api" }).use(rooms).use(messages);
 
 export const GET = app.fetch;
 export const POST = app.fetch;
+export const DELETE = app.fetch;
