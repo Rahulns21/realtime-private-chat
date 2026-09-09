@@ -40,53 +40,41 @@ const Page = () => {
       });
       return res.data;
     },
-    initialData: { ttl: ROOM_TTL_SECONDS },
     refetchInterval: 30000,
     retry: false,
   });
 
-  const isAuthenticated = !ttlError && !isTtlLoading;
+  const isAuthenticated = !ttlError && !isTtlLoading && ttlData?.ttl !== undefined;
 
   // 2. Sync expiry time with server
   useEffect(() => {
     if (isAuthenticated && ttlData?.ttl !== undefined && ttlData.ttl > 0) {
       const newExpiry = Date.now() + ttlData.ttl * 1000;
-      // Only update if difference is significant (>3 seconds)
       if (Math.abs(newExpiry - expiryTimeRef.current) > 3000) {
         expiryTimeRef.current = newExpiry;
       }
     }
   }, [ttlData, isAuthenticated]);
 
-  // 3. Timer using expiry time (NO DRIFT)
+  // 3. Timer using expiry time
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const updateTimer = () => {
-      const remaining = Math.max(
-        0,
-        Math.floor((expiryTimeRef.current - Date.now()) / 1000)
-      );
+      const remaining = Math.max(0, Math.floor((expiryTimeRef.current - Date.now()) / 1000));
       setTimeRemaining(remaining);
 
       if (remaining <= 0) {
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-        }
+        if (timerRef.current) clearInterval(timerRef.current);
         router.push("/?destroyed=true");
       }
     };
 
-    // Update immediately
     updateTimer();
-
-    // Update every second
     timerRef.current = setInterval(updateTimer, 1000);
 
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+      if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isAuthenticated, router]);
 
@@ -134,7 +122,7 @@ const Page = () => {
   });
 
   // 7. Messages query
-  const { data: messages, refetch } = useQuery({
+  const { data: messages, refetch: refetchMessages } = useQuery({
     queryKey: ["messages", roomId],
     queryFn: async () => {
       const res = await client.messages.get({ query: { roomId } });
@@ -149,7 +137,7 @@ const Page = () => {
     events: ["chat.message", "chat.destroy"],
     onData: ({ event }) => {
       if (event === "chat.message") {
-        refetch();
+        refetchMessages();
       }
       if (event === "chat.destroy") {
         router.push(ROUTES.ROOM_DESTROYED);
@@ -161,18 +149,14 @@ const Page = () => {
   // 9. Destroy mutation
   const { mutate: destroyRoom } = useMutation({
     mutationFn: async () => {
-      await client.room.delete(null, {
-        query: { roomId },
-      });
+      await client.room.delete(null, { query: { roomId } });
     },
   });
 
   // 10. Send message mutation
   const { mutate: sendMessage, isPending: isSending } = useMutation({
     mutationFn: async ({ text }: { text: string }) => {
-      if (!username) {
-        throw new Error("Username is not loaded, try refreshing the page");
-      }
+      if (!username) throw new Error("Username is not loaded");
       await client.messages.post(
         { sender: username, text },
         { query: { roomId } }
@@ -214,18 +198,14 @@ const Page = () => {
           <div className="border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-md">
             <div className="space-y-5">
               <div className="space-y-2">
-                <label className="flex items-center text-zinc-500">
-                  Room ID
-                </label>
+                <label className="flex items-center text-zinc-500">Room ID</label>
                 <div className="border border-zinc-800 bg-zinc-950 p-3 font-mono text-sm text-zinc-400">
                   {roomId}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="flex items-center text-zinc-500">
-                  Your Identity
-                </label>
+                <label className="flex items-center text-zinc-500">Your Identity</label>
                 <div className="border border-zinc-800 bg-zinc-950 p-3 font-mono text-sm text-zinc-400">
                   {username || "Loading..."}
                 </div>
@@ -251,9 +231,7 @@ const Page = () => {
       <header className="flex flex-col gap-3 border-b border-zinc-800 bg-zinc-900/30 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col">
-            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">
-              Room ID
-            </span>
+            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">Room ID</span>
             <div className="flex items-center gap-2">
               <span className="max-w-30 truncate text-sm font-bold text-green-500 sm:max-w-50">
                 {roomId}
@@ -270,9 +248,7 @@ const Page = () => {
           <div className="hidden h-8 w-px bg-zinc-800 sm:block" />
 
           <div className="flex flex-col">
-            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">
-              Self-Destruct
-            </span>
+            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">Self-Destruct</span>
             <span
               className={`flex items-center gap-2 text-sm font-bold ${
                 timeRemaining < 60 ? "text-red-500" : "text-amber-500"
