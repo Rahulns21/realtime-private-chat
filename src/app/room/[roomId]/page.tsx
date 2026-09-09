@@ -31,15 +31,33 @@ const Page = () => {
       return res.data;
     },
     initialData: { ttl: ROOM_TTL_SECONDS },
-    refetchInterval: 1000,
+    refetchInterval: 10000,
     retry: false,
   });
-
-  const timeRemaining = ttlData?.ttl ?? 0;
 
   // 2. Check if user is authenticated (TTL query succeeded)
   const isAuthenticated = !ttlError && !isTtlLoading;
 
+  const [timeRemaining, setTimeRemaining] = useState<number>(() => {
+    // Initialize once with TTL data (runs only once)
+    return ttlData?.ttl ?? ROOM_TTL_SECONDS;
+  });
+
+  const lastUpdateRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (isAuthenticated && ttlData?.ttl !== undefined) {
+      const serverTtl = ttlData.ttl;
+      const now = Date.now();
+
+      // Only update if enough time has passed or difference is large
+      if (now - lastUpdateRef.current > 5000 || Math.abs(serverTtl - timeRemaining) > 5) {
+        lastUpdateRef.current = now;
+        setTimeRemaining(serverTtl);
+      }
+    }
+  }, [ttlData, isAuthenticated, timeRemaining]);
+  
   // 3. Redirect on expiry
   useEffect(() => {
     if (isAuthenticated && timeRemaining === 0) {
