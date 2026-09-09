@@ -21,8 +21,18 @@ const Page = () => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [copyStatus, setCopyStatus] = useState("COPY");
 
-  // 1. TTL Query - this will succeed if user has a token, fail if not
-  const { data: ttlData, isLoading: isTtlLoading, error: ttlError } = useQuery({
+  // --- TIMER STATE ---
+  const [timeRemaining, setTimeRemaining] = useState<number>(ROOM_TTL_SECONDS);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const expiryTimeRef = useRef<number>(0);
+
+  // 1. TTL Query
+  const {
+    data: ttlData,
+    isLoading: isTtlLoading,
+    error: ttlError,
+    refetch: refetchTtl,
+  } = useQuery({
     queryKey: ["ttl", roomId],
     queryFn: async () => {
       const res = await client.room.ttl.get({
@@ -31,41 +41,79 @@ const Page = () => {
       return res.data;
     },
     initialData: { ttl: ROOM_TTL_SECONDS },
-    refetchInterval: 10000,
+    refetchInterval: 30000,
     retry: false,
   });
 
-  // 2. Check if user is authenticated (TTL query succeeded)
   const isAuthenticated = !ttlError && !isTtlLoading;
 
-  const [timeRemaining, setTimeRemaining] = useState<number>(() => {
-    // Initialize once with TTL data (runs only once)
-    return ttlData?.ttl ?? ROOM_TTL_SECONDS;
-  });
-
-  const lastUpdateRef = useRef<number>(0);
-
+  // 2. Sync expiry time with server
   useEffect(() => {
-    if (isAuthenticated && ttlData?.ttl !== undefined) {
-      const serverTtl = ttlData.ttl;
-      const now = Date.now();
-
-      // Only update if enough time has passed or difference is large
-      if (now - lastUpdateRef.current > 5000 || Math.abs(serverTtl - timeRemaining) > 5) {
-        lastUpdateRef.current = now;
-        setTimeRemaining(serverTtl);
+    if (isAuthenticated && ttlData?.ttl !== undefined && ttlData.ttl > 0) {
+      const newExpiry = Date.now() + ttlData.ttl * 1000;
+      // Only update if difference is significant (>3 seconds)
+      if (Math.abs(newExpiry - expiryTimeRef.current) > 3000) {
+        expiryTimeRef.current = newExpiry;
       }
     }
-  }, [ttlData, isAuthenticated, timeRemaining]);
-  
-  // 3. Redirect on expiry
+  }, [ttlData, isAuthenticated]);
+
+  // 3. Timer using expiry time (NO DRIFT)
   useEffect(() => {
-    if (isAuthenticated && timeRemaining === 0) {
+    if (!isAuthenticated) return;
+
+    const updateTimer = () => {
+      const remaining = Math.max(
+        0,
+        Math.floor((expiryTimeRef.current - Date.now()) / 1000)
+      );
+      setTimeRemaining(remaining);
+
+      if (remaining <= 0) {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+        }
+        router.push("/?destroyed=true");
+      }
+    };
+
+    // Update immediately
+    updateTimer();
+
+    // Update every second
+    timerRef.current = setInterval(updateTimer, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [isAuthenticated, router]);
+
+  // 4. Redirect on expiry
+  useEffect(() => {
+    if (isAuthenticated && timeRemaining <= 0) {
       router.push("/?destroyed=true");
     }
   }, [timeRemaining, router, isAuthenticated]);
 
-  // 4. Join mutation
+  // 5. Sync on tab focus
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refetchTtl();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [isAuthenticated, refetchTtl]);
+
+  // 6. Join mutation
   const { mutate: joinRoom, isPending: isJoining } = useMutation({
     mutationFn: async () => {
       const res = await client.room.join.post(null, {
@@ -74,7 +122,6 @@ const Page = () => {
       return res.data;
     },
     onSuccess: () => {
-      // Reload to refresh auth state
       window.location.reload();
     },
     onError: (error: Error & { status?: number }) => {
@@ -86,7 +133,7 @@ const Page = () => {
     },
   });
 
-  // 5. Messages query (only after joining)
+  // 7. Messages query
   const { data: messages, refetch } = useQuery({
     queryKey: ["messages", roomId],
     queryFn: async () => {
@@ -96,7 +143,7 @@ const Page = () => {
     enabled: isAuthenticated,
   });
 
-  // 6. Realtime (only after joining)
+  // 8. Realtime
   useRealtime({
     channels: [roomId],
     events: ["chat.message", "chat.destroy"],
@@ -111,7 +158,7 @@ const Page = () => {
     enabled: isAuthenticated,
   });
 
-  // 7. Destroy mutation
+  // 9. Destroy mutation
   const { mutate: destroyRoom } = useMutation({
     mutationFn: async () => {
       await client.room.delete(null, {
@@ -120,7 +167,7 @@ const Page = () => {
     },
   });
 
-  // 8. Send message mutation
+  // 10. Send message mutation
   const { mutate: sendMessage, isPending: isSending } = useMutation({
     mutationFn: async ({ text }: { text: string }) => {
       if (!username) {
@@ -133,7 +180,7 @@ const Page = () => {
     },
   });
 
-  // 9. Copy link
+  // 11. Copy link
   const copyLink = () => {
     const url = window.location.href;
     navigator.clipboard.writeText(url);
@@ -141,7 +188,7 @@ const Page = () => {
     setTimeout(() => setCopyStatus("COPY"), 500);
   };
 
-  // 10. Loading state
+  // 12. Loading state
   if (isTtlLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-black">
@@ -150,7 +197,7 @@ const Page = () => {
     );
   }
 
-  // 11. JOIN SCREEN — Show if not authenticated
+  // 13. JOIN SCREEN
   if (!isAuthenticated) {
     return (
       <main className="flex h-dvh max-h-dvh flex-col items-center justify-center bg-black p-4">
@@ -167,14 +214,18 @@ const Page = () => {
           <div className="border border-zinc-800 bg-zinc-900/50 p-6 backdrop-blur-md">
             <div className="space-y-5">
               <div className="space-y-2">
-                <label className="flex items-center text-zinc-500">Room ID</label>
+                <label className="flex items-center text-zinc-500">
+                  Room ID
+                </label>
                 <div className="border border-zinc-800 bg-zinc-950 p-3 font-mono text-sm text-zinc-400">
                   {roomId}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="flex items-center text-zinc-500">Your Identity</label>
+                <label className="flex items-center text-zinc-500">
+                  Your Identity
+                </label>
                 <div className="border border-zinc-800 bg-zinc-950 p-3 font-mono text-sm text-zinc-400">
                   {username || "Loading..."}
                 </div>
@@ -194,13 +245,15 @@ const Page = () => {
     );
   }
 
-  // 12. CHAT UI — Show after joining
+  // 14. CHAT UI
   return (
     <main className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-black">
       <header className="flex flex-col gap-3 border-b border-zinc-800 bg-zinc-900/30 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col">
-            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">Room ID</span>
+            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">
+              Room ID
+            </span>
             <div className="flex items-center gap-2">
               <span className="max-w-30 truncate text-sm font-bold text-green-500 sm:max-w-50">
                 {roomId}
@@ -217,7 +270,9 @@ const Page = () => {
           <div className="hidden h-8 w-px bg-zinc-800 sm:block" />
 
           <div className="flex flex-col">
-            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">Self-Destruct</span>
+            <span className="text-[10px] text-zinc-500 uppercase sm:text-xs">
+              Self-Destruct
+            </span>
             <span
               className={`flex items-center gap-2 text-sm font-bold ${
                 timeRemaining < 60 ? "text-red-500" : "text-amber-500"

@@ -5,7 +5,7 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { authMiddleware } from "./auth";
 
-const MINUTES: number = 10;
+const MINUTES: number = 1;
 export const ROOM_TTL_SECONDS: number = 60 * MINUTES;
 
 export const rooms = new Elysia({ prefix: "/room" })
