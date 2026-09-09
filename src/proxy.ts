@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { redis } from "./lib/redis";
-import { nanoid } from "nanoid";
 
 export const proxy = async (req: NextRequest) => {
   const pathname = req.nextUrl.pathname;
@@ -28,22 +27,7 @@ export const proxy = async (req: NextRequest) => {
     return NextResponse.redirect(new URL("/?error=room-full", req.url));
   }
 
-  const response = NextResponse.next();
-
-  const token = nanoid();
-
-  response.cookies.set("x-auth-token", token, {
-    path: "/",
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-  });
-
-  await redis.hset(`meta:${roomId}`, {
-    connected: [...meta.connected, token],
-  });
-
-  return response
+  return NextResponse.next();
 };
 
 export const config = {
